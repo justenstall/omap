@@ -1,12 +1,39 @@
 package omap
 
 import (
-	"reflect"
+	"cmp"
+	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func ptrTo[T any](v T) *T {
 	return &v
+}
+
+func testUnmarshal[K cmp.Ordered, V any](t *testing.T, data string, want *Map[K, V], wantErrString string) {
+	t.Helper()
+	got := &Map[K, V]{}
+	err := json.Unmarshal([]byte(data), &got)
+	if wantErrString != "" {
+		assert.ErrorContains(t, err, wantErrString, "json.Unmarshal() error")
+	} else {
+		assert.NoError(t, err, "json.Unmarshal() error")
+	}
+	assert.Equal(t, want, got, "json.Unmarshal() output")
+}
+
+func TestUnmarshal(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		data := `{"3":"value3","2":"value2","1":"value1"}`
+		want := New([]Entry[string, string]{
+			{"3", "value3"},
+			{"2", "value2"},
+			{"1", "value1"},
+		}...)
+		testUnmarshal(t, data, want, "")
+	})
 }
 
 func Test_parseKey(t *testing.T) {
@@ -49,7 +76,7 @@ func Test_parseKey(t *testing.T) {
 			name:      "string",
 			keyString: "[1,2,3]",
 			key:       new(string),
-			wantKey:   ptrTo("[1,2,3]"),
+			wantKey:   nil,
 			wantErr:   false,
 		},
 		{
@@ -84,12 +111,12 @@ func Test_parseKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := parseKey(tt.keyString, tt.key)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("parseKey() error: wantErr=%t, err=%+v", tt.wantErr, err)
+			if tt.wantErr {
+				assert.Error(t, err, "parseKey() error")
+			} else {
+				assert.NoError(t, err, "parseKey() error")
 			}
-			if !reflect.DeepEqual(tt.wantKey, tt.key) {
-				t.Fatalf("parseKey() output: want=%+v, got=%+v", tt.wantKey, tt.key)
-			}
+			assert.Equal(t, tt.wantKey, tt.key, "parseKey() output")
 		})
 	}
 }

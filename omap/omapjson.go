@@ -64,25 +64,32 @@ func (m *Map[K, V]) UnmarshalJSON(data []byte) error {
 	}
 
 	// Create a JSON decoder to read within the object
-	data = data[1 : len(data)-1] // remove leading and trailing bytes
-	d := json.NewDecoder(bytes.NewReader(data))
+	// data = data[1 : len(data)-1] // remove leading and trailing bytes
+	r := bytes.NewReader(data)
+	d := json.NewDecoder(r)
+
+	// Consume the '{' delimiter
+	if _, err := d.Token(); err != nil {
+		return err
+	}
 
 	// Decode entries until complete
 	for d.More() {
+		var (
+			key   K
+			value V
+		)
+
 		// Decode the key as a string
 		var keyString string
 		if err := d.Decode(&keyString); err != nil {
-			return err
+			return fmt.Errorf("unmarshalling key string: %w", err)
 		}
-
 		// Parse the key as its native type
-		var key K
 		if err := parseKey(keyString, &key); err != nil {
-			return fmt.Errorf("parsing key string (type %T): %w", key, err)
+			return fmt.Errorf("parsing key as type %T: %w", key, err)
 		}
-
 		// Decode the value
-		var value V
 		if err := d.Decode(&value); err != nil {
 			return fmt.Errorf("unmarshalling value (type %T): %w", value, err)
 		}
@@ -127,17 +134,6 @@ func marshalKey(key any) ([]byte, error) {
 // key must be a pointer to a type whose underyling type
 // satisfies cmp.Ordered.
 func parseKey(keyString string, key any) error {
-	// if typedKey, ok := key.(*string); ok {
-	// 	// Store string and return
-	// 	*typedKey = keyString
-	// 	return nil
-	// }
-
-	// // Respect json Unmarshaler implementation
-	// if typedKey, ok := any(key).(json.Unmarshaler); ok {
-	// 	return typedKey.UnmarshalJSON([]byte(keyString))
-	// }
-
 	// Handle all types in cmp.Ordered
 	switch typedKey := any(key).(type) {
 	case *int, *int8, *int16, *int32, *int64,
